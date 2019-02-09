@@ -278,33 +278,39 @@ class CCScriptWriter:
 
         # Add special pointer locations.
         for p in SPECIAL_POINTERS:
-            address = ""
-            i = p
-            while i < p + 4:
-                address += " {}".format(FormatHex(self.data[i]))
-                i += 1
-            address = FromSNES(address)
-            m = self.dataFiles[address]
-            h = hex(address)
-            self.specialPointers[p] = "[{{e({}.l_{})}}]".format(m, h)
+            try:
+                address = ""
+                i = p
+                while i < p + 4:
+                    address += " {}".format(FormatHex(self.data[i]))
+                    i += 1
+                address = FromSNES(address)
+                m = self.dataFiles[address]
+                h = hex(address)
+                self.specialPointers[p] = "[{{e({}.l_{})}}]".format(m, h)
+            except KeyError:
+                pass
         for a in ASM_POINTERS:
-            if self.data[a + 3] == 0x85:
-                address = FromSNES("{} {} {} {}".format(
-                                   FormatHex(self.data[a + 1]),
-                                   FormatHex(self.data[a + 2]),
-                                   FormatHex(self.data[a + 6]),
-                                   FormatHex(self.data[a + 7])))
-                t = 0
-            elif self.data[a + 3] == 0x8d:
-                address = FromSNES("{} {} {} {}".format(
-                                   FormatHex(self.data[a + 1]),
-                                   FormatHex(self.data[a + 2]),
-                                   FormatHex(self.data[a + 7]),
-                                   FormatHex(self.data[a + 8])))
-                t = 1
-            m = self.dataFiles[address]
-            h = hex(address)
-            self.asmPointers[a] = ["{}.l_{}".format(m, h), t]
+            try:
+                if self.data[a + 3] == 0x85:
+                    address = FromSNES("{} {} {} {}".format(
+                                       FormatHex(self.data[a + 1]),
+                                       FormatHex(self.data[a + 2]),
+                                       FormatHex(self.data[a + 6]),
+                                       FormatHex(self.data[a + 7])))
+                    t = 0
+                elif self.data[a + 3] == 0x8d:
+                    address = FromSNES("{} {} {} {}".format(
+                                       FormatHex(self.data[a + 1]),
+                                       FormatHex(self.data[a + 2]),
+                                       FormatHex(self.data[a + 7]),
+                                       FormatHex(self.data[a + 8])))
+                    t = 1
+                m = self.dataFiles[address]
+                h = hex(address)
+                self.asmPointers[a] = ["{}.l_{}".format(m, h), t]
+            except KeyError:
+                pass
 
     # Performs various replacements on the dialogue blocks.
     def processDialogue(self):
@@ -417,8 +423,11 @@ class CCScriptWriter:
                     if not pointers:
                         continue
                     for k, v in pointers.items():
-                        f = self.dataFiles[v]
-                        yamlData[e][k] = "{}.l_{}".format(f, hex(v))
+                        try:
+                            f = self.dataFiles[v]
+                            yamlData[e][k] = "{}.l_{}".format(f, hex(v))
+                        except KeyError:
+                            pass
             else:
                 p = "Text Pointer"
                 for e, v in yamlData.items():
@@ -436,9 +445,12 @@ class CCScriptWriter:
                             if not pointers:
                                 continue
                             for a, b in pointers.items():
-                                f = self.dataFiles[b]
-                                yamlData[e][s][n][a] = "{}.l_{}".format(f,
-                                                                        hex(b))
+                                try:
+                                    f = self.dataFiles[b]
+                                    yamlData[e][s][n][a] = "{}.l_{}".format(f,
+                                                                            hex(b))
+                                except KeyError:
+                                    pass
             csFile = open(os.path.join(o, fileName), "w")
             output = yaml.dump(yamlData, default_flow_style=False,
                       Dumper=yaml.CSafeDumper)
@@ -461,7 +473,10 @@ class CCScriptWriter:
         while True:
             if stop and stop == i:
                 break
-            c = self.data[i]
+            try:
+                c = self.data[i]
+            except IndexError:
+                break
             i += 1
             # Is it a normal block?
             if dataType == 0:
@@ -519,7 +534,10 @@ class CCScriptWriter:
                     block += "[ 09 ]"
                 # Looks like it's a normal character.
                 else:
-                    block += chr(c - 0x30)
+                    try:
+                        block += chr(c - 0x30)
+                    except ValueError:
+                        pass
             elif dataType == 2:
                 if c in (0x00, 0x01, 0x02, 0x04, 0xff):
                     if not text:
@@ -592,7 +610,10 @@ class CCScriptWriter:
                       0xEE: 3, 0xEF: 3, 0xF0: 1, 0xF1: 5, 0xF2: 5, 0xF3: 4,
                       0xF4: 3}
             if self.data[i] != 0xC0:
-                return combos[self.data[i]]
+                try:
+                    return combos[self.data[i]]
+                except KeyError:
+                    return 0
             else:
                 numPointers = self.data[i + 1]
                 return 2 + numPointers * 4
@@ -620,7 +641,7 @@ class CCScriptWriter:
                       0x19: 2, 0x20: 1, 0x21: 2, 0x22: 1, 0x23: 2, 0x24: 2}
         try:
             return combos[self.data[i]]
-        except:
+        except KeyError:
             return 0
 
     # Replaces the compressed text control codes with their values.
